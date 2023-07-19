@@ -52,33 +52,37 @@ def findTransitionProbability(state1, state2, states, matrix, branchLength):
 	matrixRaisedToPowerOfBranchLength = fractional_matrix_power(matrix, branchLength)
 	return matrixRaisedToPowerOfBranchLength[state1_index, state2_index]
 			
-def calculateLikelihoodForNode(inputTree, node, states, matrix):
+def calculateLikelihoodForNode(inputTree, node, states, matrix, featureName):
 	tree = inputTree.copy()
 	children = findChildren(node)
 	for child in children:
 		if tree[child] == 'Unassigned':
 			tree[node] = 'Unassigned'
 			return tree, False
-	tree[node] = {}
+	if tree[node] == 'Unassigned':
+	    tree[node] = {}
 	for child in children:
 		branchLength = float(findBranchLength(child))
-		tree[node][child] = {}
+		if not child in tree[node].keys():
+		    tree[node][child] = {}
+		tree[node][child][featureName] = {}
 		for state1 in states:
-			tree[node][child][state1]  = {}
+			tree[node][child][featureName][state1]  = {}
 			for state2 in states:
-				likelihood = tree[child]['states'][state2]
+				likelihood = tree[child][featureName]['states'][state2]
 				if likelihood == '?':
-					tree[node][child][state1][state2] = '?'
+					tree[node][child][featureName][state1][state2] = '?'
 				else:
-					tree[node][child][state1][state2] = likelihood * findTransitionProbability(state1, state2, states, matrix, branchLength)
-	tree[node]['states'] = {}
+					tree[node][child][featureName][state1][state2] = likelihood * findTransitionProbability(state1, state2, states, matrix, branchLength)
+
+	tree[node][featureName] = {'states': {}}
 	for state1 in states:
 		total = 1
 		sub_totals = []
 		for child in children:				
 			sub_total = 0
 			for state2 in states:
-				likelihood = tree[node][child][state1][state2]
+				likelihood = tree[node][child][featureName][state1][state2]
 				if likelihood == '?':
 					sub_total = '?'
 				else:
@@ -91,10 +95,10 @@ def calculateLikelihoodForNode(inputTree, node, states, matrix):
 			total = '?'
 		else:
 			total = np.prod(sub_totals)
-		tree[node]['states'][state1] = total
+		tree[node][featureName]['states'][state1] = total
 	return tree, True
 
-def calculateLikelihoodForAllNodes(inputTree, states, matrix):
+def calculateLikelihoodForAllNodes(inputTree, states, matrix, feature_name):
     tree = inputTree.copy()
     done = False
     while done == False:
@@ -102,20 +106,27 @@ def calculateLikelihoodForAllNodes(inputTree, states, matrix):
         for node in tree:
 #             print('likelihood')
 #             print(node)
+
             if tree[node] == 'Unassigned':
-                tree, nodeDone = calculateLikelihoodForNode(tree, node, states, matrix)
+                unassigned = True
+            elif not feature_name in tree[node].keys():
+                unassigned = True
+            else:
+                unassigned = False
+            if unassigned == True:
+                tree, nodeDone = calculateLikelihoodForNode(tree, node, states, matrix, feature_name)
     # 				print node
     # 				print tree[node]
                 if not nodeDone:
                     done = False
     return tree
 
-def findLikelihood(inputTree, states, matrix):
-    tree = calculateLikelihoodForAllNodes(inputTree, states, matrix)
+def findLikelihood(inputTree, states, matrix, feature_name):
+    tree = calculateLikelihoodForAllNodes(inputTree, states, matrix, feature_name)
     root = findRoot(tree)
     total = 0
     for state in states:
-        total = total + tree[root]['states'][state]
+        total = total + tree[root][feature_name]['states'][state]
     total = total/len(states)
     return total
 	
