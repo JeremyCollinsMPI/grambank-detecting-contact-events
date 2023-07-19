@@ -10,52 +10,52 @@ from math import sin, cos, asin, sqrt
 from LikelihoodFunction import *
 # from Contact import * 
 
-def reconstructStatesForNode(inputTree, node, states, matrix):
+def reconstructStatesForNode(inputTree, node, states, matrix, featureName):
     tree = inputTree.copy()
     parent = findParent(inputTree, node)
     if parent == None:
-        tree[node]['reconstructedStates'] = {}
+        tree[node][featureName]['reconstructedStates'] = {}
         totalProbability = 0
         for state in states:
-            if inputTree[node]['states'][state] == '?':
-                tree[node]['reconstructedStates'] = UNASSIGNED
+            if inputTree[node][featureName]['states'][state] == '?':
+                tree[node][featureName]['reconstructedStates'] = UNASSIGNED
                 return tree, 'Cannot do'
-            totalProbability = totalProbability + inputTree[node]['states'][state]
+            totalProbability = totalProbability + inputTree[node][featureName]['states'][state]
         for state in states:
-            tree[node]['reconstructedStates'][state] = inputTree[node]['states'][state]/totalProbability
+            tree[node][featureName]['reconstructedStates'][state] = inputTree[node][featureName]['states'][state]/totalProbability
         return tree, True
     else:
-        if tree[parent]['reconstructedStates'] == UNASSIGNED:
-            tree[node]['reconstructedStates'] = UNASSIGNED
+        if tree[parent][featureName]['reconstructedStates'] == UNASSIGNED:
+            tree[node][featureName]['reconstructedStates'] = UNASSIGNED
             return tree, False
         else:
-            tree[node]['reconstructedStates'] = {}
+            tree[node][featureName]['reconstructedStates'] = {}
             branchLength = float(findBranchLength(node))
             for state in states:
-                stateLikelihood = tree[node]['states'][state]
+                stateLikelihood = tree[node][featureName]['states'][state]
                 if stateLikelihood == '?':
                     stateLikelihood = 1
                 stateTotal = 0
                 for parentState in states:
-                    stateTotal = stateTotal + (tree[parent]['reconstructedStates'][parentState] * stateLikelihood * findTransitionProbability(parentState, state, states, matrix, branchLength)) 
-                tree[node]['reconstructedStates'][state] = stateTotal
+                    stateTotal = stateTotal + (tree[parent][featureName]['reconstructedStates'][parentState] * stateLikelihood * findTransitionProbability(parentState, state, states, matrix, branchLength)) 
+                tree[node][featureName]['reconstructedStates'][state] = stateTotal
             total = 0
             for state in states:
-                total = total + tree[node]['reconstructedStates'][state]
+                total = total + tree[node][featureName]['reconstructedStates'][state]
             for state in states:
-                tree[node]['reconstructedStates'][state] = tree[node]['reconstructedStates'][state]/total				
+                tree[node][featureName]['reconstructedStates'][state] = tree[node][featureName]['reconstructedStates'][state]/total				
         return tree, True
 
-def reconstructStatesForAllNodes(inputTree, states, matrix):
+def reconstructStatesForAllNodes(inputTree, states, matrix, featureName):
     tree = inputTree.copy()
     done = False
     for node in tree:
-        tree[node]['reconstructedStates'] = UNASSIGNED
+        tree[node][featureName]['reconstructedStates'] = UNASSIGNED
     while done == False:
         done = True
         for node in tree:
-            if tree[node]['reconstructedStates'] == UNASSIGNED:
-                tree, nodeDone = reconstructStatesForNode(tree, node, states, matrix)
+            if tree[node][featureName]['reconstructedStates'] == UNASSIGNED:
+                tree, nodeDone = reconstructStatesForNode(tree, node, states, matrix, featureName)
     # 				print node
     # 				print tree[node]
                 if nodeDone == 'Cannot do':
