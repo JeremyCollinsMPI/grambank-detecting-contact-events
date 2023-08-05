@@ -2,11 +2,10 @@ from copy import deepcopy
 import os
 import json
 
-UNASSIGNED = 'Unassigned'
 DO_NOT_DO = 'Do not do'
 
 def addNode(tree, string):
-	tree[string] = UNASSIGNED 
+	tree[string] = {}
 	if '(' in string and ')' in string:
 		nodes = findChildren(string)
 		for node in nodes:
@@ -23,10 +22,10 @@ def renameNode(tree, nodeName, newName):
 	for otherNode in outputTree.keys():
 		if ',' + nodeName + ':' in otherNode or '(' + nodeName + ':' in otherNode:
 			del outputTree[otherNode]
-			outputTree[otherNode.replace(nodeName, newName)] = UNASSIGNED 
+			outputTree[otherNode.replace(nodeName, newName)] = {} 
 		if findNodeName(otherNode) == nodeName:
 			del outputTree[otherNode]
-			outputTree[otherNode.replace(nodeName, newName)] = UNASSIGNED 
+			outputTree[otherNode.replace(nodeName, newName)] = {}
 	return outputTree
 
 def findBranchLength(node, string=False):
@@ -388,5 +387,7 @@ def make_reduced_trees(trees, list_of_languages, remake=False):
   json.dump(trees, open('reduced_trees.json', 'w'), indent=4)
   return trees
 
-
-
+def change_branch_length(tree, node, new_branch_length):
+    new_node = set_branch_length(node, new_branch_length)
+    tree = change_names_of_node_and_ancestors(tree, node, new_node)
+    return tree
