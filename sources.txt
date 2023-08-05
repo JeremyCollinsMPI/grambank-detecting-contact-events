@@ -1,0 +1,11 @@
+sources
+
+taik1256    3200    James R. Chamberlain (2016) proposes that the Tai-Kadai (Kra-Dai) language family was formed as early as the 12th century BCE   https://en.wikipedia.org/wiki/Kra%E2%80%93Dai_languages
+kamt1241    2100    Citing the fact that both the Zhuang and Thai peoples have the same exonym for the Vietnamese, kɛɛuA1,[a] Jerold A. Edmondson of the University of Texas at Arlington posited that the split between Zhuang (a Central Tai language) and the Southwestern Tai languages happened no earlier than the founding of Jiaozhi in Vietnam in 112 BCE but no later than the 5th-6th century AD.[6] https://en.wikipedia.org/wiki/Tai_languages
+aust1305    7000    A subsequent computational phylogenetic analysis (Sidwell 2015b)[15] suggests that Austroasiatic branches may have a loosely nested structure rather than a completely rake-like structure, with an east–west division (consisting of Munda, Khasic, Palaungic, and Khmuic forming a western group as opposed to all of the other branches) occurring possibly as early as 7,000 years before present.      https://en.wikipedia.org/wiki/Austroasiatic_languages#cite_note-Sidwell2015-18
+viet1250    2500    During the Iron Age about 2,500 B.P., relatively young Austroasiatic branches in Indochina such as Vietic, Katuic, Pearic, and Khmer were formed    https://en.wikipedia.org/wiki/Austroasiatic_languages#cite_note-Sidwell2015-18
+katu1271    2500    During the Iron Age about 2,500 B.P., relatively young Austroasiatic branches in Indochina such as Vietic, Katuic, Pearic, and Khmer were formed    https://en.wikipedia.org/wiki/Austroasiatic_languages#cite_note-Sidwell2015-18
+pear1246    2500    During the Iron Age about 2,500 B.P., relatively young Austroasiatic branches in Indochina such as Vietic, Katuic, Pearic, and Khmer were formed    https://en.wikipedia.org/wiki/Austroasiatic_languages#cite_note-Sidwell2015-18
+khme1253    2500    During the Iron Age about 2,500 B.P., relatively young Austroasiatic branches in Indochina such as Vietic, Katuic, Pearic, and Khmer were formed    https://en.wikipedia.org/wiki/Austroasiatic_languages#cite_note-Sidwell2015-18
+bahn1264    3000    while the more internally diverse Bahnaric branch (dating to about 3,000 B.P.) underwent more extensive internal diversification.   https://en.wikipedia.org/wiki/Austroasiatic_languages#cite_note-Sidwell2015-18
+

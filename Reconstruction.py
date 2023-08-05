@@ -18,15 +18,15 @@ def reconstructStatesForNode(inputTree, node, states, matrix, featureName):
         totalProbability = 0
         for state in states:
             if inputTree[node][featureName]['states'][state] == '?':
-                tree[node][featureName]['reconstructedStates'] = UNASSIGNED
+                tree[node][featureName]['reconstructedStates'] = {}
                 return tree, 'Cannot do'
             totalProbability = totalProbability + inputTree[node][featureName]['states'][state]
         for state in states:
             tree[node][featureName]['reconstructedStates'][state] = inputTree[node][featureName]['states'][state]/totalProbability
         return tree, True
     else:
-        if tree[parent][featureName]['reconstructedStates'] == UNASSIGNED:
-            tree[node][featureName]['reconstructedStates'] = UNASSIGNED
+        if tree[parent][featureName]['reconstructedStates'] == {}:
+            tree[node][featureName]['reconstructedStates'] = {}
             return tree, False
         else:
             tree[node][featureName]['reconstructedStates'] = {}
@@ -50,11 +50,11 @@ def reconstructStatesForAllNodes(inputTree, states, matrix, featureName):
     tree = inputTree.copy()
     done = False
     for node in tree:
-        tree[node][featureName]['reconstructedStates'] = UNASSIGNED
+        tree[node][featureName]['reconstructedStates'] = {}
     while done == False:
         done = True
         for node in tree:
-            if tree[node][featureName]['reconstructedStates'] == UNASSIGNED:
+            if tree[node][featureName]['reconstructedStates'] == {}:
                 tree, nodeDone = reconstructStatesForNode(tree, node, states, matrix, featureName)
     # 				print node
     # 				print tree[node]
