@@ -47,20 +47,12 @@ def branchLengthsAreAllOne(tree):
         else:
             return False
 
-def prepare_matrix(matrix):
-    length = np.shape(matrix)[0]
-    result = np.concatenate((np.zeros((1, length)), matrix))
-    result = np.concatenate((np.zeros((length+1, 1)), result), axis=1)
-    result[1:,0] = -1
-    return result
-
 def findTransitionProbability(state1, state2, states, matrix, branchLength):
     state1_index = states.index(state1)
     state2_index = states.index(state2)
-    matrixRaisedToPowerOfBranchLength = fractional_matrix_power(prepare_matrix(matrix), branchLength)
-    import  pdb; pdb.set_trace()
-    return matrixRaisedToPowerOfBranchLength[state1_index + 1, state2_index + 1]
-                            
+    matrixRaisedToPowerOfBranchLength = fractional_matrix_power(matrix, branchLength)
+    return matrixRaisedToPowerOfBranchLength[state1_index, state2_index]
+                                
 def calculateLikelihoodForNode(inputTree, node, states, matrix, featureName):
 #     if featureName == 'GB021' and node == findRoot(inputTree):
 #         import pdb; pdb.set_trace()
