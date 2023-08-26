@@ -11,6 +11,7 @@ class Analysis:
 
     def __init__(self):
         pass
+        self.rounding_to_nearest = 1
     
     def run(self):
         self.df = pd.read_csv('grambank-cldf/cldf/values.csv')
@@ -36,15 +37,15 @@ class Analysis:
     def assign_node_heights_and_branch_lengths(self):
         import json
         self.node_heights_file = json.load(open('node_heights.json', 'r'))
-        self.normalise_node_heights()
         self.assign_node_heights()
+        self.round_node_heights()
         self.assign_branch_lengths()
     
     def normalise_node_heights(self):
         self.find_largest_node_height()
         for key in self.node_heights_file.keys():
             self.node_heights_file[key] = self.node_heights_file[key] / self.largest_node_height
-            
+        
     def find_largest_node_height(self):
         if len(self.node_heights_file.values()) == 0:
             self.largest_node_height = None    
@@ -128,6 +129,11 @@ class Analysis:
     def find_number_of_nodes_between_upper_and_lower_bounds_of_node_height(self):
         self.number_of_nodes_between_upper_and_lower_bounds_of_node_height = self.numbers_of_nodes_between_upper_and_lower_bounds_of_node_height[self.lower_bounds_of_node_height.index(self.lower_bound_of_node_height)]
                 
+    def round_node_heights(self):
+        for i in range(len(self.trees)):
+            for node in self.trees[i].keys():
+                self.trees[i][node]['height'] = round(self.trees[i][node]['height'] / self.rounding_to_nearest) * self.rounding_to_nearest
+
     def assign_branch_lengths(self):
         for i in range(len(self.trees)):
             tree = self.trees[i]
@@ -145,7 +151,6 @@ class Analysis:
                 parent = parent_and_child[0]
                 child = parent_and_child[1]
                 branch_length = tree[parent]['height'] - tree[child]['height']
-                branch_length = round(branch_length, 2)
                 new_tree = change_branch_length(new_tree, child, branch_length)
                 children = findChildren(child)
                 current_child = child
@@ -182,9 +187,9 @@ class Analysis:
     def find_most_likely_transition_probabilities(self):
         current_matrix = None
         current_highest_likelihood = None
-        for i in range(1, 9):
-            x = i/10
-            matrix = [[x, 1-x], [1-x, x]]
+        rates_to_try = [0.9995, 0.9998, 0.9999, 0.99995, 0.99999]
+        for rate in rates_to_try:
+            matrix = [[rate, 1-rate], [1-rate, rate]]
             total_log_likelihood = 0
             for i in range(len(self.trees)):
                 self.tree = self.trees[i]            

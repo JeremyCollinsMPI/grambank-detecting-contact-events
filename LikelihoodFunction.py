@@ -52,7 +52,7 @@ def findTransitionProbability(state1, state2, states, matrix, branchLength):
     state2_index = states.index(state2)
     matrixRaisedToPowerOfBranchLength = fractional_matrix_power(matrix, branchLength)
     return matrixRaisedToPowerOfBranchLength[state1_index, state2_index]
-            
+                                
 def calculateLikelihoodForNode(inputTree, node, states, matrix, featureName):
 #     if featureName == 'GB021' and node == findRoot(inputTree):
 #         import pdb; pdb.set_trace()
