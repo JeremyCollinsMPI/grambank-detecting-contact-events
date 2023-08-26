@@ -1,8 +1,8 @@
-from TreeFunctions import createTree, retain_only_nodes_that_are_in_list, findTips, find_glottocode, change_branch_length, findParent, findRoot,findChildren, findNodeNameWithoutStructure
+from TreeFunctions import createTree, retain_only_nodes_that_are_in_list, findTips, find_glottocode, change_branch_length, findParent, findRoot,findChildren, findNodeNameWithoutStructure, findBranchLength
 from PrepareWalsData import findStates
 import pandas as pd
 from Reconstruction import reconstructStatesForAllNodes
-from LikelihoodFunction import calculateLikelihoodForAllNodes, findLikelihood
+from LikelihoodFunction import calculateLikelihoodForAllNodes, findLikelihood, findTransitionProbability
 import json
 from copy import deepcopy
 import numpy as np
@@ -163,8 +163,9 @@ class Analysis:
                 
     def reconstruct_for_all_features(self):
         self.matrices = {}
+        self.feature_states = {}
         self.find_all_feature_names()
-        for feature_name in self.feature_names[0:5]:
+        for feature_name in self.feature_names[0:20]:
             self.feature_name = feature_name
             self.find_states()
             if '2' in self.states:
@@ -174,14 +175,14 @@ class Analysis:
                 self.assign_feature_values_to_tips()
             self.find_most_likely_transition_probabilities()
             self.matrices[self.feature_name] = self.matrix
+            self.feature_states[self.feature_name] = self.states
             for i in range(len(self.trees)):
                 self.tree = self.trees[i]            
                 self.reconstruct_values_given_matrix()
                 self.trees[i] = deepcopy(self.tree)
     
     def find_all_feature_names(self):
-#         self.feature_names = self.df['Parameter_ID'].unique()
-        self.feature_names = ['GB020', 'GB021']
+        self.feature_names = self.df['Parameter_ID'].unique()
 
     def find_states(self):
         self.states = self.df['Value'][self.df['Parameter_ID'] == self.feature_name].unique().tolist()
