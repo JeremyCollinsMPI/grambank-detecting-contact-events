@@ -20,6 +20,7 @@ class Analysis:
             self.prepare_without_loading_from_file()
         else: 
             self.prepare_with_loading_from_file()
+        self.infer_contact_events()
     
     def prepare_without_loading_from_file(self):
         self.df = pd.read_csv('grambank-cldf/cldf/values.csv')
@@ -178,10 +179,13 @@ class Analysis:
         self.matrices = {}
         self.feature_states = {}
         self.find_all_feature_names()
-        for feature_name in self.feature_names[0:2]:
+        for feature_name in self.feature_names[0:20]:
             self.feature_name = feature_name
             self.find_states()
             if '2' in self.states:
+                index = np.where(self.feature_names == feature_name)[0][0] 
+                self.feature_names = np.delete(self.feature_names, index)
+                print('deleted ' + self.feature_name)
                 continue
             for i in range(len(self.trees)):
                 self.tree = self.trees[i]
@@ -189,6 +193,7 @@ class Analysis:
             self.find_most_likely_transition_probabilities()
             self.matrices[self.feature_name] = self.matrix
             self.feature_states[self.feature_name] = self.states
+            print(self.feature_name)
             for i in range(len(self.trees)):
                 self.tree = self.trees[i]            
                 self.reconstruct_values_given_matrix()
@@ -256,9 +261,114 @@ class Analysis:
         for variable_name in self.variables_to_store:
             with open('cache/' + variable_name + '.pkl', 'wb') as file:
                 pickle.dump(eval("self." + variable_name), file)
+
+    def infer_contact_events(self):
+        self.initialise_borrowing_probabilities()
+        for tree in self.trees:
+            self.tree = tree
+            for node in tree.keys():
+                self.node = node
+                self.parent = findParent(tree, node)
+                self.find_contact_events_for_node()
+        '''
+        also need something to try out different borrowing probabilities per feature
+        then maybe adjust reconstruction and run again, but can add that later
+        '''
+
+    def initialise_borrowing_probabilities(self):
+        initial = 0.1
+        self.borrowing_probabilities = {}
+        for feature in self.feature_names:
+            states = self.feature_states[feature]
+            self.borrowing_probabilities[feature] = {}
+            for state in states:
+                self.borrowing_probabilities[feature][state] = initial
+                
+    def find_contact_events_for_node(self):
+        import pdb; pdb.set_trace()
+        contact_events = []
+        self.find_contemporary_lineage_nodes()
+        for node2 in self.contemporary_lineage_nodes:
+            self.node2 = node2
+            likelihoods = []
+            for contact_intensity in range(0, 3):
+                self.contact_intensity = contact_intensity
+                self.find_likelihood_of_transition_from_parent_to_current_node()
+                likelihoods.append(self.likelihood)
+            most_likely_contact_intensity = likelihoods.index(max(likelihoods))
+            if most_likely_contact_intensity > 0:
+                contact_events.append([node2, most_likely_contact_intensity, max(likelihoods)])
     
+    def find_contemporary_lineage_nodes(self):
+        '''
+        you need to find node's height;
+        find any node where its height is greater than the node's height and where its child's height is less than the node's height (or it doesn't have a child)
+        '''
+        self.contemporary_lineage_nodes = []
+        for tree in self.trees:
+            self.compared_tree = tree
+            for node in tree.keys():
+                self.node2 = node
+                if self.node2_is_contemporary_to_node():
+                    self.contemporary_lineage_nodes.append(self.node2)
+    
+    def node2_is_contemporary_to_node(self):
+        if self.node2 == self.node:
+            return False
+        if self.node2['height'] < self.node['height']:
+            return False
+        children = findChildren(self.node2)
+        for child in children:
+            if self.compared_tree[child]['height'] < self.node['height']:
+                return False
+        return True
+    
+    def find_likelihood_of_transition_from_parent_to_current_node(self):
+        total_log_likelihood = 0
+        for feature in self.features[0:20]:
+            self.feature = feature
+            self.find_states()
+            self.matrix = self.matrices[self.feature]
+            self.find_likelihood_of_transition_from_parent_to_current_node_for_feature()
+            total_log_likelihood += np.log(self.likelihood_of_transition_from_parent_to_current_node_for_feature)
+        self.likelihood = total_log_likelihood
+        
+    def find_likelihood_of_transition_from_parent_to_current_node_for_feature(self):
+        '''
+        overall likelihood is calculated by summing over likelihoods of each scenario;
+        for state in states:
+        for state2 in states:
+        find the probability that contact node had state2
+        find the borrowing probability of state2
+        probability that it is borrowed is therefore 1 - ((1 - borrowing probability) ^ contact_intensity)
+        probability that it is not borrowed is 1 - probability_that_it_is_borrowed
+        probability_under_borrowing = probability that contact node had state2 * probability_that_it_is_borrowed * probability of node having state2 
+        probability_under_no_borrowing = probability that parent had state1 * transition probability of state1 to state2 * probability_that_it_is_not_borrowed * probability of node having state2
+        probability = probability_under_borrowing + probability_under_no_borrowing
+        likelihood = likelihood + probability
+        '''       
+        branch_length = float(findBranchLength(self.node))
+        likelihood = 0
+        for state2 in self.states:
+            if self.tree[self.node][self.feature]['reconstructedStates'][state2] == '?':
+                continue
+            probability_that_contact_node_had_state_2 = self.tree[self.node2][self.feature]['reconstructedStates'][state2]
+            borrowing_probability = self.borrowing_probabilities[self.feature][state2]
+            probability_that_it_is_not_borrowed = (1 - borrowing_probability) ** self.contact_intensity
+            probability_that_it_is_borrowed = 1 - probability_that_it_is_not_borrowed
+            probability_under_borrowing = probability_that_contact_node_had_state_2 \
+                * probability_that_it_is_borrowed * self.tree[self.node][self.feature][state2]
+            for state1 in self.states:
+                transition_probability = findTransitionProbability(
+                    state1, state2, self.states, self.matrix, branch_length)
+                probability_under_no_borrowing = self.tree[self.parent][self.feature]['reconstructedStates'][state1] \
+                    * probability_that_it_is_not_borrowed * transition_probability * self.tree[self.node][self.feature][state2]
+                probability = probability_under_borrowing + probability_under_no_borrowing
+                likelihood = likelihood + probability
+        self.likelihood_of_transition_from_parent_to_current_node_for_feature = likelihood
+
 
 if __name__ == "__main__":
-    load_from_file = True
+    load_from_file = False
     instance = Analysis(load_from_file)
     instance.run()
