@@ -17,6 +17,7 @@ class Analysis:
         self.df = pd.read_csv('grambank-cldf/cldf/values.csv')
         self.make_trees()
         self.reconstruct_for_all_features()
+        print(self.matrices)
 
     def make_trees(self):
         tree_strings = self.find_tree_strings()
@@ -161,8 +162,9 @@ class Analysis:
             self.trees[i] = deepcopy(new_tree)
                 
     def reconstruct_for_all_features(self):
+        self.matrices = {}
         self.find_all_feature_names()
-        for feature_name in self.feature_names:
+        for feature_name in self.feature_names[0:5]:
             self.feature_name = feature_name
             self.find_states()
             if '2' in self.states:
@@ -171,6 +173,7 @@ class Analysis:
                 self.tree = self.trees[i]
                 self.assign_feature_values_to_tips()
             self.find_most_likely_transition_probabilities()
+            self.matrices[self.feature_name] = self.matrix
             for i in range(len(self.trees)):
                 self.tree = self.trees[i]            
                 self.reconstruct_values_given_matrix()
@@ -207,7 +210,7 @@ class Analysis:
     def reconstruct_values_given_matrix(self):
         self.tree = calculateLikelihoodForAllNodes(self.tree, self.states, self.matrix, self.feature_name)
         self.tree = reconstructStatesForAllNodes(self.tree, self.states, self.matrix, self.feature_name)
-        print(self.tree)
+#         print(self.tree)
     
     def assign_feature_values_to_tips(self):
         states = self.states
