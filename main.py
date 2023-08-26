@@ -1,23 +1,36 @@
-from TreeFunctions import createTree, retain_only_nodes_that_are_in_list, findTips, find_glottocode, change_branch_length, findParent, findRoot,findChildren, findNodeNameWithoutStructure
+from TreeFunctions import createTree, retain_only_nodes_that_are_in_list, findTips, find_glottocode, change_branch_length, findParent, findRoot,findChildren, findNodeNameWithoutStructure, findBranchLength
 from PrepareWalsData import findStates
 import pandas as pd
 from Reconstruction import reconstructStatesForAllNodes
-from LikelihoodFunction import calculateLikelihoodForAllNodes, findLikelihood
-import json
+from LikelihoodFunction import calculateLikelihoodForAllNodes, findLikelihood, findTransitionProbability
 from copy import deepcopy
 import numpy as np
+from pathlib import Path
+import pickle
 
 class Analysis:
 
-    def __init__(self):
-        pass
+    def __init__(self, load_from_file=False):
         self.rounding_to_nearest = 1
+        self.load_from_file = load_from_file
+        self.variables_to_store = ['trees', 'matrices', 'feature_states', 'feature_names']
     
     def run(self):
+        if not self.load_from_file:
+            self.prepare_without_loading_from_file()
+        else: 
+            self.prepare_with_loading_from_file()
+    
+    def prepare_without_loading_from_file(self):
         self.df = pd.read_csv('grambank-cldf/cldf/values.csv')
         self.make_trees()
         self.reconstruct_for_all_features()
-        print(self.matrices)
+        self.store_in_pickle_files()
+    
+    def prepare_with_loading_from_file(self):
+        for variable_name in self.variables_to_store:
+            with open('cache/' + variable_name + '.pkl', 'rb') as file:
+                exec("self." + variable_name + " = pickle.load(file)")
 
     def make_trees(self):
         tree_strings = self.find_tree_strings()
@@ -163,8 +176,9 @@ class Analysis:
                 
     def reconstruct_for_all_features(self):
         self.matrices = {}
+        self.feature_states = {}
         self.find_all_feature_names()
-        for feature_name in self.feature_names[0:5]:
+        for feature_name in self.feature_names[0:2]:
             self.feature_name = feature_name
             self.find_states()
             if '2' in self.states:
@@ -174,14 +188,14 @@ class Analysis:
                 self.assign_feature_values_to_tips()
             self.find_most_likely_transition_probabilities()
             self.matrices[self.feature_name] = self.matrix
+            self.feature_states[self.feature_name] = self.states
             for i in range(len(self.trees)):
                 self.tree = self.trees[i]            
                 self.reconstruct_values_given_matrix()
                 self.trees[i] = deepcopy(self.tree)
-    
+
     def find_all_feature_names(self):
-#         self.feature_names = self.df['Parameter_ID'].unique()
-        self.feature_names = ['GB020', 'GB021']
+        self.feature_names = self.df['Parameter_ID'].unique()
 
     def find_states(self):
         self.states = self.df['Value'][self.df['Parameter_ID'] == self.feature_name].unique().tolist()
@@ -237,6 +251,14 @@ class Analysis:
                         outputTree[tip][self.feature_name]['states'][state] = 0
         self.tree = outputTree  
 
+    def store_in_pickle_files(self):
+        Path("cache").mkdir(parents=True, exist_ok=True)
+        for variable_name in self.variables_to_store:
+            with open('cache/' + variable_name + '.pkl', 'wb') as file:
+                pickle.dump(eval("self." + variable_name), file)
+    
+
 if __name__ == "__main__":
-    instance = Analysis()
+    load_from_file = True
+    instance = Analysis(load_from_file)
     instance.run()
