@@ -13,13 +13,14 @@ class Analysis:
     def __init__(self, load_from_file=False):
         self.rounding_to_nearest = 1
         self.load_from_file = load_from_file
-        self.variables_to_store = ['trees', 'matrices', 'feature_states', 'feature_names']
+        self.variables_to_store = ['trees', 'matrices', 'feature_states', 'features']
     
     def run(self):
         if not self.load_from_file:
             self.prepare_without_loading_from_file()
         else: 
             self.prepare_with_loading_from_file()
+        self.infer_contact_events()
     
     def prepare_without_loading_from_file(self):
         self.df = pd.read_csv('grambank-cldf/cldf/values.csv')
@@ -177,28 +178,36 @@ class Analysis:
     def reconstruct_for_all_features(self):
         self.matrices = {}
         self.feature_states = {}
-        self.find_all_feature_names()
-        for feature_name in self.feature_names[0:2]:
-            self.feature_name = feature_name
+        self.find_all_features()
+        for feature in self.features:
+            self.feature = feature
             self.find_states()
             if '2' in self.states:
+                index = np.where(self.features == feature)[0][0] 
+                self.features = np.delete(self.features, index)
+                print('deleted ' + self.feature)
                 continue
             for i in range(len(self.trees)):
                 self.tree = self.trees[i]
                 self.assign_feature_values_to_tips()
             self.find_most_likely_transition_probabilities()
-            self.matrices[self.feature_name] = self.matrix
-            self.feature_states[self.feature_name] = self.states
+            self.matrices[self.feature] = self.matrix
+            self.feature_states[self.feature] = self.states
+            print(self.feature)
             for i in range(len(self.trees)):
                 self.tree = self.trees[i]            
                 self.reconstruct_values_given_matrix()
                 self.trees[i] = deepcopy(self.tree)
 
-    def find_all_feature_names(self):
-        self.feature_names = self.df['Parameter_ID'].unique()
+    def find_all_features(self):
+        self.features = self.df['Parameter_ID'].unique()
 
     def find_states(self):
-        self.states = self.df['Value'][self.df['Parameter_ID'] == self.feature_name].unique().tolist()
+
+        if self.feature in self.feature_states.keys():
+            self.states = self.feature_states[self.feature]
+            return
+        self.states = self.df['Value'][self.df['Parameter_ID'] == self.feature].unique().tolist()
         self.states = [x for x in self.states if not x == '?']
 
     def find_most_likely_transition_probabilities(self):
@@ -210,7 +219,7 @@ class Analysis:
             total_log_likelihood = 0
             for i in range(len(self.trees)):
                 self.tree = self.trees[i]            
-                likelihood = findLikelihood(self.tree, self.states, matrix, self.feature_name)
+                likelihood = findLikelihood(self.tree, self.states, matrix, self.feature)
                 total_log_likelihood = total_log_likelihood + np.log(likelihood)
             print(total_log_likelihood)
             if current_highest_likelihood == None:
@@ -222,8 +231,8 @@ class Analysis:
         self.matrix = current_matrix
 
     def reconstruct_values_given_matrix(self):
-        self.tree = calculateLikelihoodForAllNodes(self.tree, self.states, self.matrix, self.feature_name)
-        self.tree = reconstructStatesForAllNodes(self.tree, self.states, self.matrix, self.feature_name)
+        self.tree = calculateLikelihoodForAllNodes(self.tree, self.states, self.matrix, self.feature)
+        self.tree = reconstructStatesForAllNodes(self.tree, self.states, self.matrix, self.feature)
 #         print(self.tree)
     
     def assign_feature_values_to_tips(self):
@@ -234,21 +243,21 @@ class Analysis:
             if outputTree[tip] == 'Unassigned':
                 outputTree[tip] = {}
             glottocode = find_glottocode(tip)
-            value_rows = self.df[(self.df['Language_ID'] == glottocode) & (self.df['Parameter_ID'] == self.feature_name)]
+            value_rows = self.df[(self.df['Language_ID'] == glottocode) & (self.df['Parameter_ID'] == self.feature)]
             if len(value_rows) == 0:
                 value = '?'
             else:
                 value = value_rows.iloc[0]['Value']
-            outputTree[tip][self.feature_name] = {'states': {}}
+            outputTree[tip][self.feature] = {'states': {}}
             if value == '?':
                 for state in states:
-                    outputTree[tip][self.feature_name]['states'][state] = '?'
+                    outputTree[tip][self.feature]['states'][state] = '?'
             else:
                 for state in states:
                     if state == value:
-                        outputTree[tip][self.feature_name]['states'][state] = 1
+                        outputTree[tip][self.feature]['states'][state] = 1
                     else:
-                        outputTree[tip][self.feature_name]['states'][state] = 0
+                        outputTree[tip][self.feature]['states'][state] = 0
         self.tree = outputTree  
 
     def store_in_pickle_files(self):
@@ -256,7 +265,136 @@ class Analysis:
         for variable_name in self.variables_to_store:
             with open('cache/' + variable_name + '.pkl', 'wb') as file:
                 pickle.dump(eval("self." + variable_name), file)
+
+    def infer_contact_events(self):
+        self.initialise_borrowing_probabilities()
+        self.contact_events = []
+        self.different_family_contact_events = []
+        for tree in self.trees:
+            self.tree = tree
+            for node in tree.keys():
+                print('-----')
+                print('Node 1: ' + node)
+                self.node = node
+                self.parent = findParent(tree, node)
+                if self.parent == None:
+                    print('root, excluding for now')
+                    continue
+                self.find_contact_events_for_node()
+        self.variables_to_store = ['different_family_contact_events']
+        self.store_in_pickle_files()
+        '''
+        also need something to try out different borrowing probabilities per feature
+        then maybe adjust reconstruction and run again, but can add that later
+        '''
+
+    def initialise_borrowing_probabilities(self):
+        initial = 0.1
+        self.borrowing_probabilities = {}
+        for feature in self.features:
+            states = self.feature_states[feature]
+            self.borrowing_probabilities[feature] = {}
+            for state in states:
+                self.borrowing_probabilities[feature][state] = initial
+                
+    def find_contact_events_for_node(self):
+        for tree in self.trees:
+            self.compared_tree = tree
+            self.find_contemporary_lineage_nodes()
+            for node2 in self.contemporary_lineage_nodes:
+                self.node2 = node2
+                likelihoods = []
+                for contact_intensity in range(0, 3):
+                    self.contact_intensity = contact_intensity
+                    self.find_likelihood_of_transition_from_parent_to_current_node()
+                    likelihoods.append(self.likelihood)
+                most_likely_contact_intensity = likelihoods.index(max(likelihoods))
+                if most_likely_contact_intensity > 0:
+                    self.contact_events.append([self.node, node2, most_likely_contact_intensity, len(self.features_better_explained_by_contact)])
+                    if self.node_1_and_node_2_are_from_different_families():
+                        self.different_family_contact_eventscontact_events.append([self.node, node2, most_likely_contact_intensity, len(self.features_better_explained_by_contact)])
+        
+    def find_contemporary_lineage_nodes(self):
+        self.contemporary_lineage_nodes = []
+        for node in self.compared_tree.keys():
+            self.node2 = node
+            if self.node2_is_contemporary_to_node():
+                self.contemporary_lineage_nodes.append(self.node2)
     
+    def node2_is_contemporary_to_node(self):
+        if self.node2 == self.node:
+            return False
+        if self.compared_tree[self.node2]['height'] <= self.tree[self.node]['height']:
+            return False
+        children = findChildren(self.node2)
+        if self.node in children:
+            return False
+        for child in children:
+            if self.compared_tree[child]['height'] > self.tree[self.node]['height']:
+                return False
+        return True
+    
+    def find_likelihood_of_transition_from_parent_to_current_node(self):
+        total_log_likelihood = 0
+        self.features_better_explained_by_contact = []
+        for feature in self.features:
+            self.feature = feature
+            self.find_states()
+            self.matrix = self.matrices[self.feature]
+            self.find_likelihood_of_transition_from_parent_to_current_node_for_feature()
+            total_log_likelihood += np.log(self.likelihood_of_transition_from_parent_to_current_node_for_feature)
+        self.likelihood = total_log_likelihood
+        
+    def find_likelihood_of_transition_from_parent_to_current_node_for_feature(self):
+        branch_length = float(findBranchLength(self.node))
+        likelihood = 0
+        for state2 in self.states:
+            if self.tree[self.node][self.feature]['reconstructedStates'][state2] == '?':
+                continue
+            probability_that_contact_node_had_state_2 = self.compared_tree[self.node2][self.feature]['reconstructedStates'][state2]
+            borrowing_probability = self.borrowing_probabilities[self.feature][state2]
+            probability_that_it_is_not_borrowed = (1 - borrowing_probability) ** self.contact_intensity
+            probability_that_it_is_borrowed = 1 - probability_that_it_is_not_borrowed
+            probability_under_borrowing = probability_that_contact_node_had_state_2 \
+                * probability_that_it_is_borrowed * self.tree[self.node][self.feature]['reconstructedStates'][state2]
+            probability_under_no_borrowing = 0
+            for state1 in self.states:
+                transition_probability = findTransitionProbability(
+                    state1, state2, self.states, self.matrix, branch_length)
+                probability_under_no_borrowing += self.tree[self.parent][self.feature]['reconstructedStates'][state1] \
+                    * probability_that_it_is_not_borrowed * transition_probability * self.tree[self.node][self.feature]['reconstructedStates'][state2]
+            probability = probability_under_borrowing + probability_under_no_borrowing
+            likelihood = likelihood + probability
+        self.update_features_better_explained_by_contact()
+        self.likelihood_of_transition_from_parent_to_current_node_for_feature = likelihood
+
+    def update_features_better_explained_by_contact(self):
+        values_of_node_1 = self.tree[self.node][self.feature]['reconstructedStates']
+        value_of_node_1 = [z[0] for z in list(values_of_node_1.items()) if z[1] == max(list(values_of_node_1.values()))][0]
+        values_of_node_2 = self.compared_tree[self.node2][self.feature]['reconstructedStates']
+        value_of_node_2 = [z[0] for z in list(values_of_node_2.items()) if z[1] == max(list(values_of_node_2.values()))][0]
+        values_of_parent = self.tree[self.parent][self.feature]['reconstructedStates']
+        value_of_parent = [z[0] for z in list(values_of_parent.items()) if z[1] == max(list(values_of_parent.values()))][0]
+        prob_for_node_1 = values_of_node_1[value_of_node_1]
+        prob_for_node_2 = values_of_node_2[value_of_node_2]
+        prob_for_parent = values_of_parent[value_of_parent]
+        if prob_for_node_1 > prob_for_parent and prob_for_node_2 > prob_for_parent:
+            self.features_better_explained_by_contact.append(self.feature)
+        elif prob_for_node_1 < prob_for_parent and prob_for_node_2 < prob_for_parent:
+            self.features_better_explained_by_contact.append(self.feature)
+ 
+    def node_1_and_node_2_are_siblings(self):
+        children = findChildren(self.parent)
+        if self.node2 in children:
+            return True
+        else:
+            return False
+    
+    def node_1_and_node_2_are_from_different_families(self):
+        if self.tree == self.compared_tree:
+            return False
+        else:
+            return True
 
 if __name__ == "__main__":
     load_from_file = True
