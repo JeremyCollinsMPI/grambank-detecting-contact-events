@@ -214,20 +214,21 @@ class Analysis:
         current_matrix = None
         current_highest_likelihood = None
         rates_to_try = [0.9995, 0.9998, 0.9999, 0.99995, 0.99999]
-        for rate in rates_to_try:
-            matrix = [[rate, 1-rate], [1-rate, rate]]
-            total_log_likelihood = 0
-            for i in range(len(self.trees)):
-                self.tree = self.trees[i]            
-                likelihood = findLikelihood(self.tree, self.states, matrix, self.feature)
-                total_log_likelihood = total_log_likelihood + np.log(likelihood)
-            print(total_log_likelihood)
-            if current_highest_likelihood == None:
-                current_highest_likelihood = total_log_likelihood
-                current_matrix = matrix
-            elif total_log_likelihood > current_highest_likelihood:
-                current_highest_likelihood = total_log_likelihood
-                current_matrix = matrix
+        for rate_1 in rates_to_try:
+            for rate_2 in rates_to_try:
+                matrix = [[rate_1, 1-rate_1], [1-rate_2, rate_2]]
+                total_log_likelihood = 0
+                for i in range(len(self.trees)):
+                    self.tree = self.trees[i]            
+                    likelihood = findLikelihood(self.tree, self.states, matrix, self.feature)
+                    total_log_likelihood = total_log_likelihood + np.log(likelihood)
+                print(total_log_likelihood)
+                if current_highest_likelihood == None:
+                    current_highest_likelihood = total_log_likelihood
+                    current_matrix = matrix
+                elif total_log_likelihood > current_highest_likelihood:
+                    current_highest_likelihood = total_log_likelihood
+                    current_matrix = matrix
         self.matrix = current_matrix
 
     def reconstruct_values_given_matrix(self):
@@ -397,6 +398,6 @@ class Analysis:
             return True
 
 if __name__ == "__main__":
-    load_from_file = True
+    load_from_file = False
     instance = Analysis(load_from_file)
     instance.run()
