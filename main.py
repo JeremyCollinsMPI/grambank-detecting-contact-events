@@ -282,7 +282,8 @@ class Analysis:
                     print('root, excluding for now')
                     continue
                 self.find_contact_events_for_node()
-        self.variables_to_store = ['different_family_contact_events']
+                self.select_one_contact_event_for_node()
+        self.variables_to_store = ['contact_events']
         self.store_in_pickle_files()
         '''
         also need something to try out different borrowing probabilities per feature
@@ -299,6 +300,7 @@ class Analysis:
                 self.borrowing_probabilities[feature][state] = initial
                 
     def find_contact_events_for_node(self):
+        self.contact_events_for_node = []
         for tree in self.trees:
             self.compared_tree = tree
             self.find_contemporary_lineage_nodes()
@@ -311,10 +313,15 @@ class Analysis:
                     likelihoods.append(self.likelihood)
                 most_likely_contact_intensity = likelihoods.index(max(likelihoods))
                 if most_likely_contact_intensity > 0:
-                    self.contact_events.append([self.node, node2, most_likely_contact_intensity, len(self.features_better_explained_by_contact)])
                     if self.node_1_and_node_2_are_from_different_families():
-                        self.different_family_contact_eventscontact_events.append([self.node, node2, most_likely_contact_intensity, len(self.features_better_explained_by_contact)])
-        
+                        self.contact_events_for_node.append([self.node, node2, most_likely_contact_intensity, max(likelihoods), len(self.features_better_explained_by_contact)])
+   
+    def select_one_contact_event_for_node(self):
+        if len(self.contact_events_for_node) > 0:
+            maximum_likelihood = max([x[3] for x in self.contact_events_for_node])
+            to_append = [x for x in self.contact_events_for_node if x[3] == maximum_likelihood][0]
+            self.contact_events.append(to_append)
+                                                        
     def find_contemporary_lineage_nodes(self):
         self.contemporary_lineage_nodes = []
         for node in self.compared_tree.keys():
@@ -398,6 +405,6 @@ class Analysis:
             return True
 
 if __name__ == "__main__":
-    load_from_file = False
+    load_from_file = True
     instance = Analysis(load_from_file)
     instance.run()
