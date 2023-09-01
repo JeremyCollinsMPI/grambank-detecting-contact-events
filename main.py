@@ -7,13 +7,14 @@ from copy import deepcopy
 import numpy as np
 from pathlib import Path
 import pickle
+import os
 
 class Analysis:
 
     def __init__(self, load_from_file=False):
         self.rounding_to_nearest = 1
         self.load_from_file = load_from_file
-        self.variables_to_store = ['trees', 'matrices', 'feature_states', 'features']
+        self.variables_to_store = ['trees', 'matrices', 'feature_states', 'features', 'contact_events']
     
     def run(self):
         if not self.load_from_file:
@@ -30,8 +31,9 @@ class Analysis:
     
     def prepare_with_loading_from_file(self):
         for variable_name in self.variables_to_store:
-            with open('cache/' + variable_name + '.pkl', 'rb') as file:
-                exec("self." + variable_name + " = pickle.load(file)")
+            if variable_name + '.pkl' in os.listdir('cache'):
+                with open('cache/' + variable_name + '.pkl', 'rb') as file:
+                    exec("self." + variable_name + " = pickle.load(file)")
 
     def make_trees(self):
         tree_strings = self.find_tree_strings()
@@ -203,7 +205,6 @@ class Analysis:
         self.features = self.df['Parameter_ID'].unique()
 
     def find_states(self):
-
         if self.feature in self.feature_states.keys():
             self.states = self.feature_states[self.feature]
             return
@@ -265,31 +266,31 @@ class Analysis:
         Path("cache").mkdir(parents=True, exist_ok=True)
         for variable_name in self.variables_to_store:
             with open('cache/' + variable_name + '.pkl', 'wb') as file:
-                pickle.dump(eval("self." + variable_name), file)
+                try:
+                    pickle.dump(eval("self." + variable_name), file)
+                except:
+                    pass
 
     def infer_contact_events(self):
         self.initialise_borrowing_probabilities()
-        self.contact_events = []
-        self.different_family_contact_events = []
-        for tree in self.trees:
-            self.tree = tree
-            for node in tree.keys():
-                print('-----')
-                print('Node 1: ' + node)
-                self.node = node
-                self.parent = findParent(tree, node)
-                if self.parent == None:
-                    print('root, excluding for now')
-                    continue
-                self.find_contact_events_for_node()
-                self.select_one_contact_event_for_node()
-        self.variables_to_store = ['contact_events']
-        self.store_in_pickle_files()
-        '''
-        also need something to try out different borrowing probabilities per feature
-        then maybe adjust reconstruction and run again, but can add that later
-        '''
-
+        if not 'contact_events.pkl' in os.listdir('cache'):
+            self.contact_events = []
+            self.different_family_contact_events = []
+            for tree in self.trees:
+                self.tree = tree
+                for node in tree.keys():
+                    print('-----')
+                    print('Node 1: ' + node)
+                    self.node = node
+                    self.parent = findParent(tree, node)
+                    if self.parent == None:
+                        print('root, excluding for now')
+                        continue
+                    self.find_contact_events_for_node()
+                    self.select_one_contact_event_for_node()
+            self.store_in_pickle_files()
+        self.adjust_borrowing_probabilities()
+    
     def initialise_borrowing_probabilities(self):
         initial = 0.1
         self.borrowing_probabilities = {}
@@ -314,7 +315,7 @@ class Analysis:
                 most_likely_contact_intensity = likelihoods.index(max(likelihoods))
                 if most_likely_contact_intensity > 0:
                     if self.node_1_and_node_2_are_from_different_families():
-                        self.contact_events_for_node.append([self.node, node2, most_likely_contact_intensity, max(likelihoods), len(self.features_better_explained_by_contact)])
+                        self.contact_events_for_node.append([self.node, node2, most_likely_contact_intensity, max(likelihoods), len(self.features_better_explained_by_contact), self.trees.index(self.tree), self.trees.index(self.compared_tree)])
    
     def select_one_contact_event_for_node(self):
         if len(self.contact_events_for_node) > 0:
@@ -403,6 +404,52 @@ class Analysis:
             return False
         else:
             return True
+    
+    def adjust_borrowing_probabilities(self):
+        numbers_to_try = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        for feature in self.features:
+            self.feature = feature
+            self.find_states()
+            for state in self.states:
+                total_likelihoods = []
+                for number_to_try in numbers_to_try:
+                    total_likelihood = 0
+                    for contact_event in self.contact_events:
+                        self.tree = self.trees[contact_event[5]]
+                        self.compared_tree = self.trees[contact_event[6]]
+                        self.matrix = self.matrices[self.feature]
+                        self.borrowing_probabilities[self.feature][state] = number_to_try
+                        self.node = contact_event[0]
+                        self.parent = findParent(self.tree, self.node)
+                        self.node2 = contact_event[1]
+                        self.contact_intensity = contact_event[2]
+                        likelihood = self.calculate_likelihood_for_finding_borrowing_probability()
+                    total_likelihood = total_likelihood + np.log(likelihood)
+                    total_likelihoods.append(total_likelihood)
+                new_borrowing_probability = numbers_to_try[total_likelihoods.index(max(total_likelihoods))]
+                self.borrowing_probabilities[self.feature][state] = new_borrowing_probability
+        
+    def calculate_likelihood_for_finding_borrowing_probability(self):
+        branch_length = float(findBranchLength(self.node))
+        likelihood = 0
+        for state2 in self.states:
+            if self.tree[self.node][self.feature]['reconstructedStates'][state2] == '?':
+                continue
+            probability_that_contact_node_had_state_2 = self.compared_tree[self.node2][self.feature]['reconstructedStates'][state2]
+            borrowing_probability = self.borrowing_probabilities[self.feature][state2]
+            probability_that_it_is_not_borrowed = (1 - borrowing_probability) ** self.contact_intensity
+            probability_that_it_is_borrowed = 1 - probability_that_it_is_not_borrowed
+            probability_under_borrowing = probability_that_contact_node_had_state_2 \
+                * probability_that_it_is_borrowed * self.tree[self.node][self.feature]['reconstructedStates'][state2]
+            probability_under_no_borrowing = 0
+            for state1 in self.states:
+                transition_probability = findTransitionProbability(
+                    state1, state2, self.states, self.matrix, branch_length)
+                probability_under_no_borrowing += self.tree[self.parent][self.feature]['reconstructedStates'][state1] \
+                    * probability_that_it_is_not_borrowed * transition_probability * self.tree[self.node][self.feature]['reconstructedStates'][state2]
+            probability = probability_under_borrowing + probability_under_no_borrowing
+            likelihood = likelihood + probability
+        return likelihood
 
 if __name__ == "__main__":
     load_from_file = True
