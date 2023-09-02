@@ -22,6 +22,7 @@ class Analysis:
         else: 
             self.prepare_with_loading_from_file()
         self.infer_contact_events()
+        self.analyse_contact_events()
     
     def prepare_without_loading_from_file(self):
         self.df = pd.read_csv('grambank-cldf/cldf/values.csv')
@@ -235,7 +236,6 @@ class Analysis:
     def reconstruct_values_given_matrix(self):
         self.tree = calculateLikelihoodForAllNodes(self.tree, self.states, self.matrix, self.feature)
         self.tree = reconstructStatesForAllNodes(self.tree, self.states, self.matrix, self.feature)
-#         print(self.tree)
     
     def assign_feature_values_to_tips(self):
         states = self.states
@@ -289,7 +289,7 @@ class Analysis:
                     self.find_contact_events_for_node()
                     self.select_one_contact_event_for_node()
             self.store_in_pickle_files()
-        self.adjust_borrowing_probabilities()
+        # self.adjust_borrowing_probabilities()
     
     def initialise_borrowing_probabilities(self):
         initial = 0.1
@@ -315,7 +315,7 @@ class Analysis:
                 most_likely_contact_intensity = likelihoods.index(max(likelihoods))
                 if most_likely_contact_intensity > 0:
                     if self.node_1_and_node_2_are_from_different_families():
-                        self.contact_events_for_node.append([self.node, node2, most_likely_contact_intensity, max(likelihoods), len(self.features_better_explained_by_contact), self.trees.index(self.tree), self.trees.index(self.compared_tree)])
+                        self.contact_events_for_node.append([self.node, node2, most_likely_contact_intensity, max(likelihoods), deepcopy(self.features_better_explained_by_contact), self.trees.index(self.tree), self.trees.index(self.compared_tree)])
    
     def select_one_contact_event_for_node(self):
         if len(self.contact_events_for_node) > 0:
@@ -388,9 +388,13 @@ class Analysis:
         prob_for_node_2 = values_of_node_2[value_of_node_2]
         prob_for_parent = values_of_parent[value_of_parent]
         if prob_for_node_1 > prob_for_parent and prob_for_node_2 > prob_for_parent:
-            self.features_better_explained_by_contact.append(self.feature)
+            self.features_better_explained_by_contact.append({'name': self.feature, 
+                'prob_for_node_1': prob_for_node_1, 'prob_for_node_2': prob_for_node_2,
+                'prob_for_parent': prob_for_parent})
         elif prob_for_node_1 < prob_for_parent and prob_for_node_2 < prob_for_parent:
-            self.features_better_explained_by_contact.append(self.feature)
+            self.features_better_explained_by_contact.append({'name': self.feature, 
+                'prob_for_node_1': prob_for_node_1, 'prob_for_node_2': prob_for_node_2,
+                'prob_for_parent': prob_for_parent})
  
     def node_1_and_node_2_are_siblings(self):
         children = findChildren(self.parent)
@@ -450,6 +454,11 @@ class Analysis:
             probability = probability_under_borrowing + probability_under_no_borrowing
             likelihood = likelihood + probability
         return likelihood
+
+    def analyse_contact_events(self):
+        for contact_event in self.contact_events:
+            print(contact_event[0])
+            print(contact_event[1])
 
 if __name__ == "__main__":
     load_from_file = True
