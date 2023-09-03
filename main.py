@@ -395,6 +395,7 @@ class Analysis:
                         continue
                     self.find_contact_events_for_node()
                     self.select_one_contact_event_for_node()
+            self.sort_contact_events_by_likelihood_difference()
             self.store_in_pickle_files()
         # self.adjust_borrowing_probabilities()
     
@@ -420,9 +421,10 @@ class Analysis:
                     self.find_likelihood_of_transition_from_parent_to_current_node()
                     likelihoods.append(self.likelihood)
                 most_likely_contact_intensity = likelihoods.index(max(likelihoods))
+                likelihood_difference = max(likelihoods) - likelihoods[0]
                 if most_likely_contact_intensity > 0:
                     if self.node_1_and_node_2_are_from_different_families():
-                        self.contact_events_for_node.append([self.node, node2, most_likely_contact_intensity, max(likelihoods), deepcopy(self.features_better_explained_by_contact), self.trees.index(self.tree), self.trees.index(self.compared_tree)])
+                        self.contact_events_for_node.append([self.node, node2, most_likely_contact_intensity, max(likelihoods), deepcopy(self.features_better_explained_by_contact), self.trees.index(self.tree), self.trees.index(self.compared_tree), likelihood_difference])
    
     def select_one_contact_event_for_node(self):
         if len(self.contact_events_for_node) > 0:
@@ -516,6 +518,9 @@ class Analysis:
         else:
             return True
     
+    def sort_contact_events_by_likelihood_difference(self):
+        self.contact_events = sorted(self.contact_events, key=lambda x: x[7], reverse=True)
+
     def adjust_borrowing_probabilities(self):
         numbers_to_try = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
         for feature in self.features:
@@ -566,6 +571,7 @@ class Analysis:
         for contact_event in self.contact_events:
             print(contact_event[0])
             print(contact_event[1])
+            print(contact_event[7])
 
 if __name__ == "__main__":
     load_from_file = True
