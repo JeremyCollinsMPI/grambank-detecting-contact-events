@@ -14,18 +14,20 @@ class Analysis:
     def __init__(self, load_from_file=False):
         self.rounding_to_nearest = 1
         self.load_from_file = load_from_file
-        self.variables_to_store = ['trees', 'matrices', 'feature_states', 'features', 'contact_events']
-    
+        self.variables_to_store = ['trees', 'matrices', 'feature_states', 'features', 
+            'trees_with_adjusted_branch_lengths', 'contact_events']
+        self.df = pd.read_csv('grambank-cldf/cldf/values.csv')
+
     def run(self):
         if not self.load_from_file:
             self.prepare_without_loading_from_file()
         else: 
             self.prepare_with_loading_from_file()
+        self.adjust_branch_lengths()
         self.infer_contact_events()
         self.analyse_contact_events()
     
     def prepare_without_loading_from_file(self):
-        self.df = pd.read_csv('grambank-cldf/cldf/values.csv')
         self.make_trees()
         self.reconstruct_for_all_features()
         self.store_in_pickle_files()
@@ -270,6 +272,111 @@ class Analysis:
                     pickle.dump(eval("self." + variable_name), file)
                 except:
                     pass
+
+    def adjust_branch_lengths(self):
+        if 'trees_with_adjusted_branch_lengths.pkl' in os.listdir('cache'):
+            self.trees = self.trees_with_adjusted_branch_lengths
+        else:
+            self.make_trees_with_adjusted_branch_lengths()
+            self.reconstruct_features_again()
+            self.trees_with_adjusted_branch_lengths = self.trees
+            self.store_in_pickle_files()
+    
+    def make_trees_with_adjusted_branch_lengths(self):
+        for i in range(len(self.trees)):
+            tree = self.trees[i]
+            self.tree = tree
+            self.new_tree = deepcopy(self.tree)
+            for node in tree.keys():
+                self.node = node
+                self.parent = findParent(tree, node)
+                if self.parent == None:
+                    continue
+                self.adjust_branch_length_for_node() 
+            self.trees[i] = deepcopy(self.new_tree)
+        # not adjusting node heights for now        
+        self.need_to_adjust_node_heights_after_adjusting_branch_lengths = False
+        if self.need_to_adjust_node_heights_after_adjusting_branch_lengths:
+            self.adjust_tree_heights()
+  
+    def adjust_branch_length_for_node(self):
+        self.branch_length = float(findBranchLength(self.node))
+        self.original_branch_length = self.branch_length
+        self.calculate_likelihood_of_node_given_parent_for_adjusting_branch_length()
+        self.current_highest_likelihood = self.likelihood_of_node_given_parent_for_adjusting_branch_length
+        self.try_adjusting_branch_length_downwards()
+        self.try_adjusting_branch_length_upwards()
+        print('New branch length: ', self.branch_length)
+        node_name_without_structure = findNodeNameWithoutStructure(self.node)
+        for node in self.new_tree.keys():
+            if findNodeNameWithoutStructure(node) == node_name_without_structure:
+                node_name = node
+                break
+        self.new_tree = change_branch_length(self.new_tree, node_name, self.branch_length)
+
+    def calculate_likelihood_of_node_given_parent_for_adjusting_branch_length(self):
+        likelihood = 0
+        for feature in self.features:
+            probability = 0
+            self.feature = feature
+            self.find_states()
+            self.matrix = self.matrices[self.feature]
+            for state2 in self.states:
+                if self.tree[self.node][self.feature]['reconstructedStates'][state2] == '?':
+                    continue
+                for state1 in self.states:
+                    transition_probability = findTransitionProbability(
+                        state1, state2, self.states, self.matrix, self.branch_length)
+                    probability += self.tree[self.parent][self.feature]['reconstructedStates'][state1] \
+                        * transition_probability * self.tree[self.node][self.feature]['reconstructedStates'][state2]
+            likelihood = likelihood + np.log(probability)
+            self.likelihood_of_node_given_parent_for_adjusting_branch_length = likelihood
+
+    def try_adjusting_branch_length_downwards(self):
+        likelihood_has_gone_down = False
+        while not likelihood_has_gone_down:
+            self.branch_length = self.branch_length - 100
+            if self.branch_length <= 0:
+                self.branch_length = self.branch_length + 100
+                return
+            self.calculate_likelihood_of_node_given_parent_for_adjusting_branch_length()
+            if self.likelihood_of_node_given_parent_for_adjusting_branch_length > self.current_highest_likelihood:
+                self.current_highest_likelihood = self.likelihood_of_node_given_parent_for_adjusting_branch_length
+            else:
+                likelihood_has_gone_down = True
+                self.branch_length = self.branch_length + 100
+                return
+
+    def try_adjusting_branch_length_upwards(self):
+        maximum_allowed_branch_length = 5000
+        likelihood_has_gone_down = False
+        while not likelihood_has_gone_down:
+            if self.branch_length >= maximum_allowed_branch_length:
+                self.branch_length = self.original_branch_length
+                return
+            self.branch_length = self.branch_length + 100
+            self.calculate_likelihood_of_node_given_parent_for_adjusting_branch_length()
+            if self.likelihood_of_node_given_parent_for_adjusting_branch_length > self.current_highest_likelihood:
+                self.current_highest_likelihood = self.likelihood_of_node_given_parent_for_adjusting_branch_length
+            else:
+                likelihood_has_gone_down = True
+                self.branch_length = self.branch_length - 100
+                return
+    
+    def reconstruct_features_again(self):
+        for feature in self.features:
+            self.feature = feature
+            self.find_states()
+            for i in range(len(self.trees)):
+                self.tree = self.trees[i]
+                self.assign_feature_values_to_tips()
+            self.matrix = self.matrices[self.feature]
+            self.states = self.feature_states[self.feature] 
+            print(self.feature)
+            for i in range(len(self.trees)):
+                self.tree = self.trees[i]            
+                self.reconstruct_values_given_matrix()
+                self.trees[i] = deepcopy(self.tree)
 
     def infer_contact_events(self):
         self.initialise_borrowing_probabilities()
