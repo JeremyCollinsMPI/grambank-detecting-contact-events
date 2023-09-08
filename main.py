@@ -414,6 +414,7 @@ class Analysis:
             self.compared_tree = tree
             self.find_contemporary_lineage_nodes()
             for node2 in self.contemporary_lineage_nodes:
+                self.feature_evidences = {}
                 self.node2 = node2
                 likelihoods = []
                 for contact_intensity in range(0, 3):
@@ -423,13 +424,25 @@ class Analysis:
                 most_likely_contact_intensity = likelihoods.index(max(likelihoods))
                 likelihood_difference = max(likelihoods) - likelihoods[0]
                 if most_likely_contact_intensity > 0:
+                    self.sort_features_explained_by_contact_by_evidence()
                     if self.node_1_and_node_2_are_from_different_families():
-                        self.contact_events_for_node.append([self.node, node2, most_likely_contact_intensity, max(likelihoods), deepcopy(self.features_better_explained_by_contact), self.trees.index(self.tree), self.trees.index(self.compared_tree), likelihood_difference])
+                        self.find_ancestral_probs()
+                        self.contact_events_for_node.append(
+                            {
+                                'node_1': self.node,
+                                'node_2': self.node2,
+                                'contact_intensity': most_likely_contact_intensity,
+                                'likelihood': max(likelihoods),
+                                'features_better_explained_by_contact': deepcopy(self.features_better_explained_by_contact),
+                                'tree_1_index': self.trees.index(self.tree),
+                                'tree_2_index': self.trees.index(self.compared_tree), 
+                                'evidence_for_contact': likelihood_difference
+                            })
    
     def select_one_contact_event_for_node(self):
         if len(self.contact_events_for_node) > 0:
-            maximum_likelihood = max([x[3] for x in self.contact_events_for_node])
-            to_append = [x for x in self.contact_events_for_node if x[3] == maximum_likelihood][0]
+            maximum_likelihood = max([x['likelihood'] for x in self.contact_events_for_node])
+            to_append = [x for x in self.contact_events_for_node if x['likelihood'] == maximum_likelihood][0]
             self.contact_events.append(to_append)
                                                         
     def find_contemporary_lineage_nodes(self):
@@ -466,6 +479,7 @@ class Analysis:
     def find_likelihood_of_transition_from_parent_to_current_node_for_feature(self):
         branch_length = float(findBranchLength(self.node))
         likelihood = 0
+        likelihood_if_there_was_no_borrowing = 0
         for state2 in self.states:
             if self.tree[self.node][self.feature]['reconstructedStates'][state2] == '?':
                 continue
@@ -481,10 +495,20 @@ class Analysis:
                     state1, state2, self.states, self.matrix, branch_length)
                 probability_under_no_borrowing += self.tree[self.parent][self.feature]['reconstructedStates'][state1] \
                     * probability_that_it_is_not_borrowed * transition_probability * self.tree[self.node][self.feature]['reconstructedStates'][state2]
+                likelihood_if_there_was_no_borrowing += self.tree[self.parent][self.feature]['reconstructedStates'][state1] \
+                    * transition_probability * self.tree[self.node][self.feature]['reconstructedStates'][state2]
             probability = probability_under_borrowing + probability_under_no_borrowing
             likelihood = likelihood + probability
-        self.update_features_better_explained_by_contact()
         self.likelihood_of_transition_from_parent_to_current_node_for_feature = likelihood
+        self.likelihood_if_there_was_no_borrowing = likelihood_if_there_was_no_borrowing
+        self.update_feature_evidences()
+        self.update_features_better_explained_by_contact()
+
+    def update_feature_evidences(self):
+        difference_in_probability_assuming_borrowing = np.log(self.likelihood_of_transition_from_parent_to_current_node_for_feature / self.likelihood_if_there_was_no_borrowing)
+        if not self.feature in self.feature_evidences:
+            self.feature_evidences[self.feature] = []
+        self.feature_evidences[self.feature].append(difference_in_probability_assuming_borrowing)
 
     def update_features_better_explained_by_contact(self):
         values_of_node_1 = self.tree[self.node][self.feature]['reconstructedStates']
@@ -494,17 +518,21 @@ class Analysis:
         values_of_parent = self.tree[self.parent][self.feature]['reconstructedStates']
         value_of_parent = [z[0] for z in list(values_of_parent.items()) if z[1] == max(list(values_of_parent.values()))][0]
         prob_for_node_1 = values_of_node_1[value_of_node_1]
-        prob_for_node_2 = values_of_node_2[value_of_node_2]
-        prob_for_parent = values_of_parent[value_of_parent]
+        prob_for_node_2 = values_of_node_2[value_of_node_1]
+        prob_for_parent = values_of_parent[value_of_node_1]
         if prob_for_node_1 > prob_for_parent and prob_for_node_2 > prob_for_parent:
             self.features_better_explained_by_contact.append({'name': self.feature, 
+                'value_of_node_1': value_of_node_1,
                 'prob_for_node_1': prob_for_node_1, 'prob_for_node_2': prob_for_node_2,
-                'prob_for_parent': prob_for_parent})
+                'prob_for_parent': prob_for_parent,
+                'evidence_for_borrowing': self.feature_evidences[self.feature]})
         elif prob_for_node_1 < prob_for_parent and prob_for_node_2 < prob_for_parent:
             self.features_better_explained_by_contact.append({'name': self.feature, 
+                'value_of_node_1': value_of_node_1,
                 'prob_for_node_1': prob_for_node_1, 'prob_for_node_2': prob_for_node_2,
-                'prob_for_parent': prob_for_parent})
- 
+                'prob_for_parent': prob_for_parent,
+                'evidence_for_borrowing': self.feature_evidences[self.feature]})
+     
     def node_1_and_node_2_are_siblings(self):
         children = findChildren(self.parent)
         if self.node2 in children:
@@ -518,8 +546,36 @@ class Analysis:
         else:
             return True
     
+    def sort_features_explained_by_contact_by_evidence(self):
+        self.features_better_explained_by_contact = sorted(self.features_better_explained_by_contact, 
+            key=lambda x: max(x['evidence_for_borrowing']), reverse=True)
+    
+    def find_ancestral_probs(self):
+        for i in range(len(self.features_better_explained_by_contact)):
+            self.feature = self.features_better_explained_by_contact[i]['name']
+            values_of_node_1 = self.tree[self.node][self.feature]['reconstructedStates']
+            self.value_of_node_1 = [z[0] for z in list(values_of_node_1.items()) if z[1] == max(list(values_of_node_1.values()))][0]
+            self.features_better_explained_by_contact[i]['node_1_ancestral_probs'] = self.find_node_1_ancestral_probs()
+            self.features_better_explained_by_contact[i]['node_2_ancestral_probs'] = self.find_node_2_ancestral_probs()
+
+    def find_node_1_ancestral_probs(self):
+        ancestral_probs = []
+        x = self.parent
+        while not x == None:
+            ancestral_probs.append(self.tree[x][self.feature]['reconstructedStates'][self.value_of_node_1])
+            x = findParent(self.tree, x)
+        return ancestral_probs
+
+    def find_node_2_ancestral_probs(self):
+        ancestral_probs = []
+        x = findParent(self.compared_tree, self.node2)
+        while not x == None:
+            ancestral_probs.append(self.compared_tree[x][self.feature]['reconstructedStates'][self.value_of_node_1])
+            x = findParent(self.compared_tree, x)
+        return ancestral_probs
+
     def sort_contact_events_by_likelihood_difference(self):
-        self.contact_events = sorted(self.contact_events, key=lambda x: x[7], reverse=True)
+        self.contact_events = sorted(self.contact_events, key=lambda x: x['evidence_for_contact'], reverse=True)
 
     def adjust_borrowing_probabilities(self):
         numbers_to_try = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
@@ -531,14 +587,14 @@ class Analysis:
                 for number_to_try in numbers_to_try:
                     total_likelihood = 0
                     for contact_event in self.contact_events:
-                        self.tree = self.trees[contact_event[5]]
-                        self.compared_tree = self.trees[contact_event[6]]
+                        self.tree = self.trees[contact_event['tree_1_index']]
+                        self.compared_tree = self.trees[contact_event['tree_2_index']]
                         self.matrix = self.matrices[self.feature]
                         self.borrowing_probabilities[self.feature][state] = number_to_try
-                        self.node = contact_event[0]
+                        self.node = contact_event['node_1']
                         self.parent = findParent(self.tree, self.node)
-                        self.node2 = contact_event[1]
-                        self.contact_intensity = contact_event[2]
+                        self.node2 = contact_event['node_2']
+                        self.contact_intensity = contact_event['contact_intensity']
                         likelihood = self.calculate_likelihood_for_finding_borrowing_probability()
                     total_likelihood = total_likelihood + np.log(likelihood)
                     total_likelihoods.append(total_likelihood)
@@ -569,9 +625,11 @@ class Analysis:
 
     def analyse_contact_events(self):
         for contact_event in self.contact_events:
-            print(contact_event[0])
-            print(contact_event[1])
-            print(contact_event[7])
+            print(contact_event['node_1'])
+            print(contact_event['node_2'])
+            print(np.exp(contact_event['evidence_for_contact']))
+            print(contact_event['features_better_explained_by_contact'][0:3])
+            print('---------------')
 
 if __name__ == "__main__":
     load_from_file = True
