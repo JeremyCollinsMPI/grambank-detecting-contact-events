@@ -8,4 +8,5 @@ katu1271    2500    During the Iron Age about 2,500 B.P., relatively young Austr
 pear1246    2500    During the Iron Age about 2,500 B.P., relatively young Austroasiatic branches in Indochina such as Vietic, Katuic, Pearic, and Khmer were formed    https://en.wikipedia.org/wiki/Austroasiatic_languages#cite_note-Sidwell2015-18
 khme1253    2500    During the Iron Age about 2,500 B.P., relatively young Austroasiatic branches in Indochina such as Vietic, Katuic, Pearic, and Khmer were formed    https://en.wikipedia.org/wiki/Austroasiatic_languages#cite_note-Sidwell2015-18
 bahn1264    3000    while the more internally diverse Bahnaric branch (dating to about 3,000 B.P.) underwent more extensive internal diversification.   https://en.wikipedia.org/wiki/Austroasiatic_languages#cite_note-Sidwell2015-18
+sino1245    9000    The most commonly cited hypothesis associates the family with the Neolithic Yangshao culture (7000–5000 years BP) of the Yellow River basin, with an expansion driven by millet agriculture. `https://en.wikipedia.org/wiki/Sino-Tibetan_languages
 
