@@ -33,8 +33,10 @@ class Analysis:
         self.store_in_pickle_files()
     
     def prepare_with_loading_from_file(self):
+        print('Loading from files:')
         for variable_name in self.variables_to_store:
             if variable_name + '.pkl' in os.listdir('cache'):
+                print(variable_name)
                 with open('cache/' + variable_name + '.pkl', 'rb') as file:
                     exec("self." + variable_name + " = pickle.load(file)")
 
@@ -269,11 +271,12 @@ class Analysis:
     def store_in_pickle_files(self):
         Path("cache").mkdir(parents=True, exist_ok=True)
         for variable_name in self.variables_to_store:
-            with open('cache/' + variable_name + '.pkl', 'wb') as file:
-                try:
+            try:
+                eval("self." + variable_name)
+                with open('cache/' + variable_name + '.pkl', 'wb') as file:
                     pickle.dump(eval("self." + variable_name), file)
-                except:
-                    pass
+            except:
+                pass
 
     def adjust_branch_lengths(self):
         if 'trees_with_adjusted_branch_lengths.pkl' in os.listdir('cache'):
@@ -627,11 +630,12 @@ class Analysis:
 
     def analyse_contact_events(self):
         for contact_event in self.contact_events:
-            print(contact_event['node_1'])
-            print(contact_event['node_2'])
-            print(np.exp(contact_event['evidence_for_contact']))
-            print(contact_event['features_better_explained_by_contact'][0:3])
-            print('---------------')
+            if contact_event['contact_intensity'] == 2:
+                print(contact_event['node_1'])
+                print(contact_event['node_2'])
+                print(np.exp(contact_event['evidence_for_contact']))
+                print(contact_event['features_better_explained_by_contact'][0:3])
+                print('---------------')
 
 if __name__ == "__main__":
     load_from_file = True
